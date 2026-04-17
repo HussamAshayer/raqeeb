@@ -7,12 +7,7 @@ export default function BlockOverlay({ activeBlock }) {
     <div className="overlay-container">
       <div className="overlay-grid">
         {blocks.map((num) => (
-          <div
-            key={num}
-            className={`overlay-block ${
-              num === activeBlock ? "block-danger" : "block-safe"
-            }`}
-          >
+          <div key={num} className={`overlay-block ${num === activeBlock ? "block-danger" : "block-safe"}`}>
             {num}
           </div>
         ))}

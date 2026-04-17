@@ -17,10 +17,7 @@ export default function LoginPage() {
       password,
     });
 
-    if (error) {
-      setError(error.message);
-    }
-
+    if (error) setError(error.message);
     setLoading(false);
   };
 
@@ -70,12 +67,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

@@ -1,16 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
-import { Shield, Plus, Loader2 } from "lucide-react";
+import { Shield, Plus, Loader2, Trash2 } from "lucide-react";
 
 export default function WhitelistForm({ onInserted }) {
   const [mac, setMac] = useState("");
+  const [entries, setEntries] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const normMac = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
-
   const MAC_REGEX = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i;
+
+  const fetchEntries = async () => {
+    const { data } = await supabase
+      .from("whitelist")
+      .select("id, mac")
+      .order("id", { ascending: false });
+    setEntries(data || []);
+  };
+
+  useEffect(() => { fetchEntries(); }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,48 +28,37 @@ export default function WhitelistForm({ onInserted }) {
     setSuccess("");
 
     const cleanMAC = normMac(mac);
-
-    if (!cleanMAC) {
-      setError("❌ Enter a MAC address.");
-      return;
-    }
-
-    if (!MAC_REGEX.test(cleanMAC)) {
-      setError("❌ Invalid MAC format. Use AA:BB:CC:DD:EE:FF");
-      return;
-    }
+    if (!cleanMAC) { setError("❌ Enter a MAC address."); return; }
+    if (!MAC_REGEX.test(cleanMAC)) { setError("❌ Invalid MAC format. Use AA:BB:CC:DD:EE:FF"); return; }
 
     setLoading(true);
-
     try {
-      const { data: dupeMac, error: dupeMacErr } = await supabase
-        .from("whitelist")
-        .select("id")
-        .eq("mac", cleanMAC)
-        .limit(1);
+      const { data: existing } = await supabase
+        .from("whitelist").select("id").eq("mac", cleanMAC).limit(1);
 
-      if (dupeMacErr) throw dupeMacErr;
-
-      if (dupeMac && dupeMac.length > 0) {
-        setError("❌ This MAC address is already whitelisted.");
+      if (existing && existing.length > 0) {
+        setError("❌ Already whitelisted.");
         return;
       }
 
-      const { error: insertErr } = await supabase
-        .from("whitelist")
-        .insert({ mac: cleanMAC });
-
+      const { error: insertErr } = await supabase.from("whitelist").insert({ mac: cleanMAC });
       if (insertErr) throw insertErr;
 
-      setSuccess("✔ Device successfully whitelisted!");
+      setSuccess("✔ Device whitelisted!");
       setMac("");
-      onInserted && onInserted();
+      fetchEntries();
+      onInserted?.();
     } catch (err) {
-      console.error(err);
       setError("❌ Failed to insert entry.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRemove = async (id, entryMac) => {
+    await supabase.from("whitelist").delete().eq("id", id);
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    onInserted?.();
   };
 
   return (
@@ -69,8 +68,8 @@ export default function WhitelistForm({ onInserted }) {
           <Shield className="whitelist-icon" />
         </div>
         <div>
-          <h2 className="whitelist-title">Whitelist device</h2>
-          <p className="whitelist-subtitle">Add trusted devices by MAC</p>
+          <h2 className="whitelist-title">Whitelist</h2>
+          <p className="whitelist-subtitle">Trusted devices by MAC</p>
         </div>
       </div>
 
@@ -84,27 +83,40 @@ export default function WhitelistForm({ onInserted }) {
             onChange={(e) => setMac(e.target.value)}
           />
         </div>
-
         <button type="submit" disabled={loading} className="whitelist-button">
-          {loading ? (
-            <>
-              <Loader2 className="whitelist-button-icon spinning" />
-              Checking...
-            </>
-          ) : (
-            <>
-              <Plus className="whitelist-button-icon" />
-              Add to whitelist
-            </>
-          )}
+          {loading
+            ? <><Loader2 className="whitelist-button-icon spinning" />Checking...</>
+            : <><Plus className="whitelist-button-icon" />Add to whitelist</>
+          }
         </button>
       </form>
 
-      {error && (
-        <div className="whitelist-message whitelist-error">{error}</div>
-      )}
-      {success && (
-        <div className="whitelist-message whitelist-success">{success}</div>
+      {error && <div className="whitelist-message whitelist-error">{error}</div>}
+      {success && <div className="whitelist-message whitelist-success">{success}</div>}
+
+      {entries.length > 0 && (
+        <div className="whitelist-entries">
+          <div className="whitelist-entries-list">
+            {entries
+              .filter((e) => !mac.trim() || e.mac.includes(mac.trim().toLowerCase()))
+              .map((entry) => (
+                <div key={entry.id} className="whitelist-entry">
+                  <span className="whitelist-entry-mac">{entry.mac}</span>
+                  <button
+                    className="whitelist-entry-remove"
+                    onClick={() => handleRemove(entry.id, entry.mac)}
+                    title="Remove from whitelist"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))
+            }
+            {entries.filter((e) => !mac.trim() || e.mac.includes(mac.trim().toLowerCase())).length === 0 && (
+              <p className="whitelist-no-results">No matches for "{mac}"</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

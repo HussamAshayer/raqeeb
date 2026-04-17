@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
-import "./App.css";
+import "./app.css";
 import Dashboard from "./Dashboard";
 import LoginPage from "./LoginPage";
 import { supabase } from "../supabase";
+import { RoleContext } from "./RoleContext";
+import { useRole } from "./useRole";
+
+function AppInner({ session, onLogout }) {
+  const roleData = useRole(session?.user?.id);
+
+  if (roleData.roleLoading) return null;
+
+  return (
+    <RoleContext.Provider value={roleData}>
+      <Dashboard onLogout={onLogout} userEmail={session?.user?.email} />
+    </RoleContext.Provider>
+  );
+}
 
 function App() {
   const [session, setSession] = useState(null);
@@ -29,17 +43,9 @@ function App() {
 
   if (loading) return null;
 
-  if (!session) {
-    return <LoginPage />;
-  }
+  if (!session) return <LoginPage />;
 
-  return <Dashboard onLogout={handleLogout} />;
+  return <AppInner session={session} onLogout={handleLogout} />;
 }
 
 export default App;
-
-
-
-
-
-
